@@ -1,0 +1,15 @@
+{
+  "name": "gmx-avalanche-prices",
+  "license": "UNLICENSED",
+  "scripts": {
+    "codegen": "graph codegen",
+    "build": "graph build",
+    "create-test": "graph create --node http://graphtest.meter.io:8020/ gmx/gmx-price",
+    "deploy-prod": "graph deploy --product hosted-service gmx-io/gmx-avalanche-price",
+    "deploy-test": "graph deploy --node http://graphtest.meter.io:8020/ --ipfs http://graphtest.meter.io:5001 gmx/gmx-price"
+  },
+  "dependencies": {
+    "@graphprotocol/graph-cli": "0.21.1",
+    "@graphprotocol/graph-ts": "0.20.0"
+  }
+}

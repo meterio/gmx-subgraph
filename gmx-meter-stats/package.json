@@ -1,0 +1,17 @@
+{
+  "name": "gmx",
+  "license": "UNLICENSED",
+  "scripts": {
+    "codegen": "graph codegen",
+    "build": "graph build",
+    "create-test": "graph create --node http://graphtest.meter.io:8020/ gmx/gmx-stats",
+    "deploy-prod": "graph deploy --product hosted-service gmx-io/gmx-avalanche-stats",
+    "deploy": "graph deploy --node http://graphtest.meter.io:8020/ --ipfs http://graphtest.meter.io:5001 gmx/gmx-stats"
+  },
+  "dependencies": {
+    "@graphprotocol/graph-cli": "0.21.1",
+    "@graphprotocol/graph-ts": "0.20.0",
+    "ethers": "^5.4.6",
+    "moment": "^2.29.1"
+  }
+}

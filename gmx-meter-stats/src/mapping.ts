@@ -7,13 +7,14 @@ import {
   store,
   log,
   crypto,
-  ByteArray,
+  ByteArray
 } from "@graphprotocol/graph-ts";
 import {
   GlpManager,
   AddLiquidity,
   RemoveLiquidity,
 } from "../generated/GlpManager/GlpManager";
+import * as positionRouter from "../generated/PositionRouter/PositionRouter";
 
 // import {
 //   Distribute
@@ -47,6 +48,7 @@ import {
   VolumeStat,
   Transaction,
   Volume,
+  Action,
   GlpStat,
   HourlyVolumeBySource,
   HourlyVolumeByToken,
@@ -92,15 +94,15 @@ export function handleIncreasePosition(event: IncreasePositionEvent): void {
   _storeFees("margin", event.block.timestamp, event.params.fee);
   _storeUserAction(event.block.timestamp, event.params.account, "margin");
 
-  let volIncId = crypto.keccak256(
+  let incId = crypto.keccak256(
     ByteArray.fromUTF8(
       event.transaction.hash.toHexString() +
         event.params.indexToken.toHexString()
     )
   );
-  let volumeOutEntity = Volume.load(volIncId.toHexString());
+  let volumeOutEntity = Volume.load(incId.toHexString());
   if (volumeOutEntity == null) {
-    volumeOutEntity = new Volume(volIncId.toHexString());
+    volumeOutEntity = new Volume(incId.toHexString());
     volumeOutEntity.token = event.params.indexToken.toHexString();
     volumeOutEntity.timestamp = event.block.timestamp
       .minus(event.block.timestamp.mod(BigInt.fromI32(3600)))
@@ -114,6 +116,19 @@ export function handleIncreasePosition(event: IncreasePositionEvent): void {
       : "IncreasePosition-Short";
     volumeOutEntity.action = isLong;
     volumeOutEntity.save();
+  }
+  let actionEntity = Action.load(incId.toHexString());
+  if (actionEntity == null) {
+    actionEntity = new Action(incId.toHexString());
+    let isLong = event.params.isLong
+      ? "IncreasePosition-Long"
+      : "IncreasePosition-Short";
+    actionEntity.action = isLong;
+    actionEntity.params = `{\"key\":\"${event.params.key}\",\"collateralToken\":\"${event.params.collateralToken}\",\"indexToken\":\"${event.params.indexToken}\",\"collateralDelta\":\"${event.params.collateralDelta}\",\"sizeDelta\":\"${event.params.sizeDelta}\",\"isLong\":${event.params.isLong},\"price\":\"${event.params.price}\",\"flags\":{},\"feeBasisPoints\":${event.params.fee}}`;
+    actionEntity.timestamp = event.block.timestamp.toI32();
+    actionEntity.account = event.params.account.toHexString();
+    actionEntity.txhash = event.transaction.hash.toHexString();
+    actionEntity.blockNumber = event.block.number.toI32();
   }
 }
 
@@ -150,15 +165,15 @@ export function handleDecreasePosition(event: DecreasePositionEvent): void {
     );
   }
 
-  let volDecId = crypto.keccak256(
+  let decId = crypto.keccak256(
     ByteArray.fromUTF8(
       event.transaction.hash.toHexString() +
         event.params.indexToken.toHexString()
     )
   );
-  let volumeOutEntity = Volume.load(volDecId.toHexString());
+  let volumeOutEntity = Volume.load(decId.toHexString());
   if (volumeOutEntity == null) {
-    volumeOutEntity = new Volume(volDecId.toHexString());
+    volumeOutEntity = new Volume(decId.toHexString());
     volumeOutEntity.token = event.params.indexToken.toHexString();
     volumeOutEntity.timestamp = event.block.timestamp
       .minus(event.block.timestamp.mod(BigInt.fromI32(3600)))
@@ -172,6 +187,19 @@ export function handleDecreasePosition(event: DecreasePositionEvent): void {
       : "DecreasePosition-Short";
     volumeOutEntity.action = isLong;
     volumeOutEntity.save();
+  }
+  let actionEntity = Action.load(decId.toHexString());
+  if (actionEntity == null) {
+    actionEntity = new Action(decId.toHexString());
+    let isLong = event.params.isLong
+      ? "DecreasePosition-Long"
+      : "DecreasePosition-Short";
+    actionEntity.action = isLong;
+    actionEntity.params = `{\"key\":\"${event.params.key}\",\"collateralToken\":\"${event.params.collateralToken}\",\"indexToken\":\"${event.params.indexToken}\",\"collateralDelta\":\"${event.params.collateralDelta}\",\"sizeDelta\":\"${event.params.sizeDelta}\",\"isLong\":${event.params.isLong},\"price\":\"${event.params.price}\",\"flags\":{},\"feeBasisPoints\":${event.params.fee}}`;
+    actionEntity.timestamp = event.block.timestamp.toI32();
+    actionEntity.account = event.params.account.toHexString();
+    actionEntity.txhash = event.transaction.hash.toHexString();
+    actionEntity.blockNumber = event.block.number.toI32();
   }
 }
 
@@ -423,6 +451,23 @@ export function handleSwap(event: SwapEvent): void {
     volumeOutEntity.volume = event.params.amountOut;
     volumeOutEntity.action = "Swap";
     volumeOutEntity.save();
+  }
+  let swapId = crypto.keccak256(
+    ByteArray.fromUTF8(
+      txId +
+        event.params.tokenIn.toHexString() +
+        event.params.tokenOut.toHexString()
+    )
+  );
+  let actionEntity = Action.load(swapId.toHexString());
+  if (actionEntity == null) {
+    actionEntity = new Action(swapId.toHexString());
+    actionEntity.action = "Swap";
+    actionEntity.params = `{\"tokenIn\":\"${event.params.tokenIn}\",\"tokenOut\":\"${event.params.tokenOut}\",\"amountIn\":\"${event.params.amountIn}\",\"amountOut\":\"${event.params.amountOut}\",\"usdAmount\":\"${event.params.tokenIn}\",\"feeBasisPoints\":${event.params.feeBasisPoints}}`;
+    actionEntity.timestamp = event.block.timestamp.toI32();
+    actionEntity.account = event.params.account.toHexString();
+    actionEntity.txhash = event.transaction.hash.toHexString();
+    actionEntity.blockNumber = event.block.number.toI32();
   }
 }
 
@@ -821,6 +866,44 @@ export function handleDecreaseUsdgAmount(event: DecreaseUsdgAmount): void {
   _updateUsdgAmount(timestamp, "weekly", token, totalEntity.usdgAmount);
 }
 
+export function handleCreateIncreasePosition(
+  event: positionRouter.CreateIncreasePosition
+): void {
+  let txId = event.transaction.hash.toHexString();
+  let createIncPosId = crypto.keccak256(
+    ByteArray.fromUTF8(txId + event.params.indexToken.toHexString())
+  );
+  let actionEntity = Action.load(createIncPosId.toHexString());
+  if (actionEntity == null) {
+    actionEntity = new Action(createIncPosId.toHexString());
+    actionEntity.action = "CreateIncreasePosition";
+    actionEntity.params = `{\"indexToken\":\"${event.params.indexToken}\",\"isLong\":${event.params.isLong},\"sizeDelta\":\"${event.params.sizeDelta}\",\"acceptablePrice\":\"${event.params.acceptablePrice}\"}`;
+    actionEntity.timestamp = event.block.timestamp.toI32();
+    actionEntity.account = event.params.account.toHexString();
+    actionEntity.txhash = event.transaction.hash.toHexString();
+    actionEntity.blockNumber = event.block.number.toI32();
+  }
+}
+
+export function handleCreateDecreasePosition(
+  event: positionRouter.CreateDecreasePosition
+): void {
+  let txId = event.transaction.hash.toHexString();
+  let createDecPosId = crypto.keccak256(
+    ByteArray.fromUTF8(txId + event.params.indexToken.toHexString())
+  );
+  let actionEntity = Action.load(createDecPosId.toHexString());
+  if (actionEntity == null) {
+    actionEntity = new Action(createDecPosId.toHexString());
+    actionEntity.action = "CreateDecreasePosition";
+    actionEntity.params = `{\"indexToken\":\"${event.params.indexToken}\",\"isLong\":${event.params.isLong},\"sizeDelta\":\"${event.params.sizeDelta}\",\"acceptablePrice\":\"${event.params.acceptablePrice}\"}`;
+    actionEntity.timestamp = event.block.timestamp.toI32();
+    actionEntity.account = event.params.account.toHexString();
+    actionEntity.txhash = event.transaction.hash.toHexString();
+    actionEntity.blockNumber = event.block.number.toI32();
+  }
+}
+//////////////////////////////////////////////////////////////////////////
 function _updateReservedAmount(
   timestamp: BigInt,
   period: string,

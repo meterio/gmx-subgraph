@@ -321,3 +321,13 @@ type Volume @entity {
   volume: BigInt!
   action: String!
 }
+
+type Action @entity {
+  id: ID!
+  action: String!
+  params: String!
+  timestamp: Int!
+  account: String!
+  txhash: String!
+  blockNumber: Int!
+}

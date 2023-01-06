@@ -33,7 +33,7 @@ dataSources:
     source:
       address: "0x3218E21240968c650C03A4657C22275951Dd9232"
       abi: WitnetPriceFeed
-      startBlock: 6056544
+      startBlock: 16849511
       # startBlock: 8330228
     mapping:
       kind: ethereum/events
@@ -53,9 +53,9 @@ dataSources:
     name: GlpManager
     network: metertest
     source:
-      address: "0x2eE0C9E2c7Cc9d54a23decB7afB04aa8065f51B2"
+      address: "0x94dB843CB32842b81D1102D77f5F5F946Ce2a2D1"
       abi: GlpManager
-      startBlock: 23261079
+      startBlock: 24062205
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.4
@@ -76,9 +76,9 @@ dataSources:
     name: OrderBook
     network: metertest
     source:
-      address: "0xB51834ABF68C6E114377D436ddbf58756CDE0946"
+      address: "0x53f0C2a9e2eFE41cCA2964F124B3985aF4BE6cc8"
       abi: OrderBook
-      startBlock: 23261135
+      startBlock: 24100174
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.4
@@ -241,7 +241,7 @@ dataSources:
     name: Vault2
     network: metertest
     source:
-      address: "0x82706b8c6b66FD7f4d085BC826866A88FBF59e52"
+      address: "0x5AE9F9377653b7D4A5e69A7b880ad7D3C6944CaD"
       abi: Vault
       startBlock: 23261048
     mapping:
@@ -268,9 +268,9 @@ dataSources:
     name: Vault
     network: metertest
     source:
-      address: "0x82706b8c6b66FD7f4d085BC826866A88FBF59e52"
+      address: "0x5AE9F9377653b7D4A5e69A7b880ad7D3C6944CaD"
       abi: Vault
-      startBlock: 23261048
+      startBlock: 24062157
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.4
@@ -326,7 +326,7 @@ dataSources:
     source:
       address: "0x783fCA88c24a6a6a710375a51Ab18821FcEF2210"
       abi: PositionRouter
-      startBlock: 227000
+      startBlock: 24100206
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.4
@@ -338,8 +338,28 @@ dataSources:
         - name: PositionRouter
           file: ./abis/PositionRouter.json
       eventHandlers:
-        - event: CreateIncreasePosition(indexed address,address[],address,uint256,uint256,uint256,bool,uint256,uint256,uint256,uint256,uint256,uint256)
+        - event: CreateIncreasePosition(indexed address,address[],address,uint256,uint256,uint256,bool,uint256,uint256,uint256,uint256,uint256,uint256,uint256)
           handler: handleCreateIncreasePosition
-        - event: CreateDecreasePosition(indexed address,address[],address,uint256,uint256,bool,address,uint256,uint256,uint256,uint256,uint256,uint256)
+        - event: CreateDecreasePosition(indexed address,address[],address,uint256,uint256,bool,address,uint256,uint256,uint256,uint256,uint256,uint256,uint256)
           handler: handleCreateDecreasePosition
+      file: ./src/mapping.ts
+  - kind: ethereum/contract
+    name: Router
+    network: metertest
+    source:
+      address: "0x151A12e089a8d54925dDCd0045ac4070e2Da855c"
+      abi: Router
+      startBlock: 24062166
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.4
+      language: wasm/assemblyscript
+      entities:
+        - Swap
+      abis:
+        - name: Router
+          file: ./abis/Router.json
+      eventHandlers:
+        - event: Swap(address,address,address,uint256,uint256)
+          handler: handleRouterSwap
       file: ./src/mapping.ts

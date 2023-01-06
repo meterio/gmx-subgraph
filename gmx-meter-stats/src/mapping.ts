@@ -1,14 +1,4 @@
-import {
-  BigInt,
-  Address,
-  Bytes,
-  TypedMap,
-  ethereum,
-  store,
-  log,
-  crypto,
-  ByteArray
-} from "@graphprotocol/graph-ts";
+import { BigInt, Address, Bytes, ethereum } from "@graphprotocol/graph-ts";
 import {
   GlpManager,
   AddLiquidity,
@@ -34,6 +24,8 @@ import {
   IncreasePoolAmount,
   DecreasePoolAmount,
 } from "../generated/Vault/Vault";
+
+import { Swap as RouterSwapEvent } from "../generated/Router/Router";
 
 import {
   DecreaseUsdgAmount,
@@ -94,32 +86,29 @@ export function handleIncreasePosition(event: IncreasePositionEvent): void {
   _storeFees("margin", event.block.timestamp, event.params.fee);
   _storeUserAction(event.block.timestamp, event.params.account, "margin");
 
-  let incId = crypto.keccak256(
-    ByteArray.fromUTF8(
-      event.transaction.hash.toHexString() +
-        event.params.indexToken.toHexString()
-    )
-  );
-  let volumeOutEntity = Volume.load(incId.toHexString());
-  if (volumeOutEntity == null) {
-    volumeOutEntity = new Volume(incId.toHexString());
-    volumeOutEntity.token = event.params.indexToken.toHexString();
-    volumeOutEntity.timestamp = event.block.timestamp
+  let incId =
+    event.transaction.hash.toHexString() +
+    event.params.indexToken.toHexString();
+  let volumeEntity = Volume.load(incId);
+  if (volumeEntity == null) {
+    volumeEntity = new Volume(incId);
+    volumeEntity.token = event.params.indexToken.toHexString();
+    volumeEntity.timestamp = event.block.timestamp
       .minus(event.block.timestamp.mod(BigInt.fromI32(3600)))
       .toI32();
-    volumeOutEntity.group = event.block.timestamp
+    volumeEntity.group = event.block.timestamp
       .minus(event.block.timestamp.mod(BigInt.fromI32(86400)))
       .toI32();
-    volumeOutEntity.volume = event.params.sizeDelta;
+    volumeEntity.volume = event.params.sizeDelta;
     let isLong = event.params.isLong
       ? "IncreasePosition-Long"
       : "IncreasePosition-Short";
-    volumeOutEntity.action = isLong;
-    volumeOutEntity.save();
+    volumeEntity.action = isLong;
+    volumeEntity.save();
   }
-  let actionEntity = Action.load(incId.toHexString());
+  let actionEntity = Action.load(incId);
   if (actionEntity == null) {
-    actionEntity = new Action(incId.toHexString());
+    actionEntity = new Action(incId);
     let isLong = event.params.isLong
       ? "IncreasePosition-Long"
       : "IncreasePosition-Short";
@@ -129,6 +118,7 @@ export function handleIncreasePosition(event: IncreasePositionEvent): void {
     actionEntity.account = event.params.account.toHexString();
     actionEntity.txhash = event.transaction.hash.toHexString();
     actionEntity.blockNumber = event.block.number.toI32();
+    actionEntity.save();
   }
 }
 
@@ -165,32 +155,29 @@ export function handleDecreasePosition(event: DecreasePositionEvent): void {
     );
   }
 
-  let decId = crypto.keccak256(
-    ByteArray.fromUTF8(
-      event.transaction.hash.toHexString() +
-        event.params.indexToken.toHexString()
-    )
-  );
-  let volumeOutEntity = Volume.load(decId.toHexString());
-  if (volumeOutEntity == null) {
-    volumeOutEntity = new Volume(decId.toHexString());
-    volumeOutEntity.token = event.params.indexToken.toHexString();
-    volumeOutEntity.timestamp = event.block.timestamp
+  let decId =
+    event.transaction.hash.toHexString() +
+    event.params.indexToken.toHexString();
+  let volumeEntity = Volume.load(decId);
+  if (volumeEntity == null) {
+    volumeEntity = new Volume(decId);
+    volumeEntity.token = event.params.indexToken.toHexString();
+    volumeEntity.timestamp = event.block.timestamp
       .minus(event.block.timestamp.mod(BigInt.fromI32(3600)))
       .toI32();
-    volumeOutEntity.group = event.block.timestamp
+    volumeEntity.group = event.block.timestamp
       .minus(event.block.timestamp.mod(BigInt.fromI32(86400)))
       .toI32();
-    volumeOutEntity.volume = event.params.sizeDelta;
+    volumeEntity.volume = event.params.sizeDelta;
     let isLong = event.params.isLong
       ? "DecreasePosition-Long"
       : "DecreasePosition-Short";
-    volumeOutEntity.action = isLong;
-    volumeOutEntity.save();
+    volumeEntity.action = isLong;
+    volumeEntity.save();
   }
-  let actionEntity = Action.load(decId.toHexString());
+  let actionEntity = Action.load(decId);
   if (actionEntity == null) {
-    actionEntity = new Action(decId.toHexString());
+    actionEntity = new Action(decId);
     let isLong = event.params.isLong
       ? "DecreasePosition-Long"
       : "DecreasePosition-Short";
@@ -200,6 +187,7 @@ export function handleDecreasePosition(event: DecreasePositionEvent): void {
     actionEntity.account = event.params.account.toHexString();
     actionEntity.txhash = event.transaction.hash.toHexString();
     actionEntity.blockNumber = event.block.number.toI32();
+    actionEntity.save();
   }
 }
 
@@ -254,38 +242,46 @@ function _storeLiquidatedPosition(
 ): void {
   let key = keyBytes.toHexString();
   let position = ActivePosition.load(key);
-  let averagePrice = position.averagePrice;
+  if (position != null) {
+    let averagePrice = position.averagePrice;
 
-  let id = key + ":" + timestamp.toString();
-  let liquidatedPosition = new LiquidatedPosition(id);
-  liquidatedPosition.account = account.toHexString();
-  liquidatedPosition.timestamp = timestamp.toI32();
-  liquidatedPosition.indexToken = indexToken.toHexString();
-  liquidatedPosition.size = size;
-  liquidatedPosition.collateralToken = collateralToken.toHexString();
-  liquidatedPosition.collateral = position.collateral;
-  liquidatedPosition.isLong = isLong;
-  liquidatedPosition.type = type;
-  liquidatedPosition.key = key;
+    let id = key + ":" + timestamp.toString();
+    let liquidatedPosition = new LiquidatedPosition(id);
+    liquidatedPosition.account = account.toHexString();
+    liquidatedPosition.timestamp = timestamp.toI32();
+    liquidatedPosition.indexToken = indexToken.toHexString();
+    liquidatedPosition.size = size;
+    liquidatedPosition.collateralToken = collateralToken.toHexString();
+    liquidatedPosition.collateral = position.collateral;
+    liquidatedPosition.isLong = isLong;
+    liquidatedPosition.type = type;
+    liquidatedPosition.key = key;
 
-  liquidatedPosition.markPrice = markPrice;
-  liquidatedPosition.averagePrice = averagePrice;
-  let priceDelta = isLong ? averagePrice - markPrice : markPrice - averagePrice;
-  liquidatedPosition.loss = (size * priceDelta) / averagePrice;
+    liquidatedPosition.markPrice = markPrice;
+    liquidatedPosition.averagePrice = averagePrice;
+    let priceDelta = isLong
+      ? averagePrice.minus(markPrice)
+      : markPrice.minus(averagePrice);
+    liquidatedPosition.loss = size.times(priceDelta).div(averagePrice);
 
-  let fundingRateId = _getFundingRateId("total", "total", collateralToken);
-  let fundingRateEntity = FundingRate.load(fundingRateId);
-  let accruedFundingRate =
-    BigInt.fromI32(fundingRateEntity.endFundingRate) -
-    position.entryFundingRate;
-  liquidatedPosition.borrowFee =
-    (accruedFundingRate * size) / FUNDING_PRECISION;
-
-  liquidatedPosition.save();
+    let fundingRateId = _getFundingRateId("total", "total", collateralToken);
+    let fundingRateEntity = FundingRate.load(fundingRateId);
+    if (fundingRateEntity != null) {
+      let accruedFundingRate = BigInt.fromI32(
+        fundingRateEntity.endFundingRate
+      ).minus(position.entryFundingRate);
+      liquidatedPosition.borrowFee = accruedFundingRate
+        .times(size)
+        .div(FUNDING_PRECISION);
+    }
+    liquidatedPosition.save();
+  }
 }
 
 export function handleBuyUSDG(event: BuyUSDGEvent): void {
-  let volume = event.params.usdgAmount * BigInt.fromString("1000000000000");
+  let volume = event.params.usdgAmount.times(
+    BigInt.fromString("1000000000000")
+  );
   _storeVolume("mint", event.block.timestamp, volume);
   _storeVolumeBySource(
     "mint",
@@ -294,33 +290,32 @@ export function handleBuyUSDG(event: BuyUSDGEvent): void {
     volume
   );
 
-  let fee = (volume * event.params.feeBasisPoints) / BASIS_POINTS_DIVISOR;
+  let fee = volume.times(event.params.feeBasisPoints).div(BASIS_POINTS_DIVISOR);
   _storeFees("mint", event.block.timestamp, fee);
   _storeUserAction(event.block.timestamp, event.params.account, "mintBurn");
 
-  let volBuyId = crypto.keccak256(
-    ByteArray.fromUTF8(
-      event.transaction.hash.toHexString() + event.params.token.toHexString()
-    )
-  );
-  let volumeOutEntity = Volume.load(volBuyId.toHexString());
-  if (volumeOutEntity == null) {
-    volumeOutEntity = new Volume(volBuyId.toHexString());
-    volumeOutEntity.token = event.params.token.toHexString();
-    volumeOutEntity.timestamp = event.block.timestamp
+  let volBuyId =
+    event.transaction.hash.toHexString() + event.params.token.toHexString();
+  let volumeEntity = Volume.load(volBuyId);
+  if (volumeEntity == null) {
+    volumeEntity = new Volume(volBuyId);
+    volumeEntity.token = event.params.token.toHexString();
+    volumeEntity.timestamp = event.block.timestamp
       .minus(event.block.timestamp.mod(BigInt.fromI32(3600)))
       .toI32();
-    volumeOutEntity.group = event.block.timestamp
+    volumeEntity.group = event.block.timestamp
       .minus(event.block.timestamp.mod(BigInt.fromI32(86400)))
       .toI32();
-    volumeOutEntity.volume = event.params.usdgAmount;
-    volumeOutEntity.action = "BuyUSDG";
-    volumeOutEntity.save();
+    volumeEntity.volume = event.params.usdgAmount;
+    volumeEntity.action = "BuyUSDG";
+    volumeEntity.save();
   }
 }
 
 export function handleSellUSDG(event: SellUSDGEvent): void {
-  let volume = event.params.usdgAmount * BigInt.fromString("1000000000000");
+  let volume = event.params.usdgAmount.times(
+    BigInt.fromString("1000000000000")
+  );
   _storeVolumeBySource(
     "burn",
     event.block.timestamp,
@@ -329,28 +324,25 @@ export function handleSellUSDG(event: SellUSDGEvent): void {
   );
   _storeVolume("burn", event.block.timestamp, volume);
 
-  let fee = (volume * event.params.feeBasisPoints) / BASIS_POINTS_DIVISOR;
+  let fee = volume.times(event.params.feeBasisPoints).div(BASIS_POINTS_DIVISOR);
   _storeFees("burn", event.block.timestamp, fee);
   _storeUserAction(event.block.timestamp, event.params.account, "mintBurn");
 
-  let volSellId = crypto.keccak256(
-    ByteArray.fromUTF8(
-      event.transaction.hash.toHexString() + event.params.token.toHexString()
-    )
-  );
-  let volumeOutEntity = Volume.load(volSellId.toHexString());
-  if (volumeOutEntity == null) {
-    volumeOutEntity = new Volume(volSellId.toHexString());
-    volumeOutEntity.token = event.params.token.toHexString();
-    volumeOutEntity.timestamp = event.block.timestamp
+  let volSellId =
+    event.transaction.hash.toHexString() + event.params.token.toHexString();
+  let volumeEntity = Volume.load(volSellId);
+  if (volumeEntity == null) {
+    volumeEntity = new Volume(volSellId);
+    volumeEntity.token = event.params.token.toHexString();
+    volumeEntity.timestamp = event.block.timestamp
       .minus(event.block.timestamp.mod(BigInt.fromI32(3600)))
       .toI32();
-    volumeOutEntity.group = event.block.timestamp
+    volumeEntity.group = event.block.timestamp
       .minus(event.block.timestamp.mod(BigInt.fromI32(86400)))
       .toI32();
-    volumeOutEntity.volume = event.params.usdgAmount;
-    volumeOutEntity.action = "SellUSDG";
-    volumeOutEntity.save();
+    volumeEntity.volume = event.params.usdgAmount;
+    volumeEntity.action = "SellUSDG";
+    volumeEntity.save();
   }
 }
 
@@ -371,7 +363,8 @@ export function handleSwap(event: SwapEvent): void {
   if (transaction == null) {
     transaction = new Transaction(event.transaction.hash.toHexString());
     transaction.from = event.transaction.from.toHexString();
-    transaction.to = event.transaction.to.toHexString();
+    transaction.to =
+      event.transaction.to == null ? "" : event.transaction.to.toHexString();
     transaction.save();
   }
 
@@ -397,7 +390,7 @@ export function handleSwap(event: SwapEvent): void {
 
   let decimals = getTokenDecimals(entity.tokenIn);
   let denominator = BigInt.fromString("10").pow(decimals);
-  let volume = (entity.amountIn * entity.tokenInPrice) / denominator;
+  let volume = entity.amountIn.times(entity.tokenInPrice).div(denominator);
   _storeVolume("swap", event.block.timestamp, volume);
   _storeVolumeBySource(
     "swap",
@@ -413,17 +406,15 @@ export function handleSwap(event: SwapEvent): void {
     volume
   );
 
-  let fee = (volume * entity.feeBasisPoints) / BASIS_POINTS_DIVISOR;
+  let fee = volume.times(entity.feeBasisPoints).div(BASIS_POINTS_DIVISOR);
   _storeFees("swap", event.block.timestamp, fee);
 
   _storeUserAction(event.block.timestamp, event.transaction.from, "swap");
 
-  let volInId = crypto.keccak256(
-    ByteArray.fromUTF8(txId + event.params.tokenIn.toHexString())
-  );
-  let volumeInEntity = Volume.load(volInId.toHexString());
+  let volInId = txId + event.params.tokenIn.toHexString();
+  let volumeInEntity = Volume.load(volInId);
   if (volumeInEntity == null) {
-    volumeInEntity = new Volume(volInId.toHexString());
+    volumeInEntity = new Volume(volInId);
     volumeInEntity.token = event.params.tokenIn.toHexString();
     volumeInEntity.timestamp = event.block.timestamp
       .minus(event.block.timestamp.mod(BigInt.fromI32(3600)))
@@ -435,42 +426,86 @@ export function handleSwap(event: SwapEvent): void {
     volumeInEntity.action = "Swap";
     volumeInEntity.save();
   }
-  let volOutId = crypto.keccak256(
-    ByteArray.fromUTF8(txId + event.params.tokenOut.toHexString())
-  );
-  let volumeOutEntity = Volume.load(volOutId.toHexString());
-  if (volumeOutEntity == null) {
-    volumeOutEntity = new Volume(volOutId.toHexString());
-    volumeOutEntity.token = event.params.tokenOut.toHexString();
-    volumeOutEntity.timestamp = event.block.timestamp
+  let volOutId = txId + event.params.tokenOut.toHexString();
+  let volumeEntity = Volume.load(volOutId);
+  if (volumeEntity == null) {
+    volumeEntity = new Volume(volOutId);
+    volumeEntity.token = event.params.tokenOut.toHexString();
+    volumeEntity.timestamp = event.block.timestamp
       .minus(event.block.timestamp.mod(BigInt.fromI32(3600)))
       .toI32();
-    volumeOutEntity.group = event.block.timestamp
+    volumeEntity.group = event.block.timestamp
       .minus(event.block.timestamp.mod(BigInt.fromI32(86400)))
       .toI32();
-    volumeOutEntity.volume = event.params.amountOut;
-    volumeOutEntity.action = "Swap";
-    volumeOutEntity.save();
+    volumeEntity.volume = event.params.amountOut;
+    volumeEntity.action = "Swap";
+    volumeEntity.save();
   }
-  let swapId = crypto.keccak256(
-    ByteArray.fromUTF8(
-      txId +
-        event.params.tokenIn.toHexString() +
-        event.params.tokenOut.toHexString()
-    )
-  );
-  let actionEntity = Action.load(swapId.toHexString());
+  let swapId =
+    txId +
+    event.params.tokenIn.toHexString() +
+    event.params.tokenOut.toHexString();
+  let actionEntity = Action.load(swapId);
   if (actionEntity == null) {
-    actionEntity = new Action(swapId.toHexString());
+    actionEntity = new Action(swapId);
     actionEntity.action = "Swap";
     actionEntity.params = `{\"tokenIn\":\"${event.params.tokenIn}\",\"tokenOut\":\"${event.params.tokenOut}\",\"amountIn\":\"${event.params.amountIn}\",\"amountOut\":\"${event.params.amountOut}\",\"usdAmount\":\"${event.params.tokenIn}\",\"feeBasisPoints\":${event.params.feeBasisPoints}}`;
     actionEntity.timestamp = event.block.timestamp.toI32();
     actionEntity.account = event.params.account.toHexString();
     actionEntity.txhash = event.transaction.hash.toHexString();
     actionEntity.blockNumber = event.block.number.toI32();
+    actionEntity.save();
   }
 }
 
+export function handleRouterSwap(event: RouterSwapEvent): void {
+  let txId = event.transaction.hash.toHexString();
+  let volInId = txId + event.params.tokenIn.toHexString();
+  let volumeInEntity = Volume.load(volInId);
+  if (volumeInEntity == null) {
+    volumeInEntity = new Volume(volInId);
+    volumeInEntity.token = event.params.tokenIn.toHexString();
+    volumeInEntity.timestamp = event.block.timestamp
+      .minus(event.block.timestamp.mod(BigInt.fromI32(3600)))
+      .toI32();
+    volumeInEntity.group = event.block.timestamp
+      .minus(event.block.timestamp.mod(BigInt.fromI32(86400)))
+      .toI32();
+    volumeInEntity.volume = event.params.amountIn;
+    volumeInEntity.action = "Swap";
+    volumeInEntity.save();
+  }
+  let volOutId = txId + event.params.tokenOut.toHexString();
+  let volumeEntity = Volume.load(volOutId);
+  if (volumeEntity == null) {
+    volumeEntity = new Volume(volOutId);
+    volumeEntity.token = event.params.tokenOut.toHexString();
+    volumeEntity.timestamp = event.block.timestamp
+      .minus(event.block.timestamp.mod(BigInt.fromI32(3600)))
+      .toI32();
+    volumeEntity.group = event.block.timestamp
+      .minus(event.block.timestamp.mod(BigInt.fromI32(86400)))
+      .toI32();
+    volumeEntity.volume = event.params.amountOut;
+    volumeEntity.action = "Swap";
+    volumeEntity.save();
+  }
+  let swapId =
+    txId +
+    event.params.tokenIn.toHexString() +
+    event.params.tokenOut.toHexString();
+  let actionEntity = Action.load(swapId);
+  if (actionEntity == null) {
+    actionEntity = new Action(swapId);
+    actionEntity.action = "Swap";
+    actionEntity.params = `{\"tokenIn\":\"${event.params.tokenIn}\",\"tokenOut\":\"${event.params.tokenOut}\",\"amountIn\":\"${event.params.amountIn}\",\"amountOut\":\"${event.params.amountOut}\",\"usdAmount\":\"${event.params.tokenIn}\",\"feeBasisPoints\":${event.params.feeBasisPoints}}`;
+    actionEntity.timestamp = event.block.timestamp.toI32();
+    actionEntity.account = event.params.account.toHexString();
+    actionEntity.txhash = event.transaction.hash.toHexString();
+    actionEntity.blockNumber = event.block.number.toI32();
+    actionEntity.save();
+  }
+}
 function _storeUserAction(
   timestamp: BigInt,
   account: Address,
@@ -491,7 +526,7 @@ function _storeUserAction(
 function _storeUserActionByType(
   timestamp: BigInt,
   account: Address,
-  actionType: string,
+  actionType: String,
   period: string,
   userStatTotal: UserStat | null
 ): UserStat {
@@ -546,8 +581,8 @@ function _storeUserActionByType(
 
   userStat.actionCount += 1;
 
-  let actionCountProp: string;
-  let uniqueCountProp: string;
+  let actionCountProp: string = "";
+  let uniqueCountProp: string = "";
   if (actionType == "margin") {
     actionCountProp = "actionMarginCount";
     uniqueCountProp = "uniqueMarginCount";
@@ -698,7 +733,7 @@ export function handleIncreasePoolAmount(event: IncreasePoolAmount): void {
   let timestamp = event.block.timestamp;
   let token = event.params.token;
   let totalEntity = _getOrCreateTokenStat(timestamp, "total", token);
-  totalEntity.poolAmount += event.params.amount;
+  totalEntity.poolAmount = totalEntity.poolAmount.plus(event.params.amount);
   totalEntity.poolAmountUsd = getTokenAmountUsd(
     token.toHexString(),
     totalEntity.poolAmount
@@ -732,7 +767,7 @@ export function handleDecreasePoolAmount(event: DecreasePoolAmount): void {
   let timestamp = event.block.timestamp;
   let token = event.params.token;
   let totalEntity = _getOrCreateTokenStat(timestamp, "total", token);
-  totalEntity.poolAmount -= event.params.amount;
+  totalEntity.poolAmount = totalEntity.poolAmount.minus(event.params.amount);
   totalEntity.poolAmountUsd = getTokenAmountUsd(
     token.toHexString(),
     totalEntity.poolAmount
@@ -869,10 +904,11 @@ export function handleDecreaseUsdgAmount(event: DecreaseUsdgAmount): void {
 export function handleCreateIncreasePosition(
   event: positionRouter.CreateIncreasePosition
 ): void {
-  let txId = event.transaction.hash.toHexString();
-  let createIncPosId = crypto.keccak256(
-    ByteArray.fromUTF8(txId + event.params.indexToken.toHexString())
-  );
+  // let txId = event.transaction.hash.toHexString();
+  // let createIncPosId = crypto.keccak256(
+  //   ByteArray.fromUTF8(txId + event.params.indexToken.toHexString())
+  // );
+  let createIncPosId = event.transaction.hash;
   let actionEntity = Action.load(createIncPosId.toHexString());
   if (actionEntity == null) {
     actionEntity = new Action(createIncPosId.toHexString());
@@ -882,16 +918,18 @@ export function handleCreateIncreasePosition(
     actionEntity.account = event.params.account.toHexString();
     actionEntity.txhash = event.transaction.hash.toHexString();
     actionEntity.blockNumber = event.block.number.toI32();
+    actionEntity.save();
   }
 }
 
 export function handleCreateDecreasePosition(
   event: positionRouter.CreateDecreasePosition
 ): void {
-  let txId = event.transaction.hash.toHexString();
-  let createDecPosId = crypto.keccak256(
-    ByteArray.fromUTF8(txId + event.params.indexToken.toHexString())
-  );
+  // let txId = event.transaction.hash.toHexString();
+  // let createDecPosId = crypto.keccak256(
+  //   ByteArray.fromUTF8(txId + event.params.indexToken.toHexString())
+  // );
+  let createDecPosId = event.transaction.hash;
   let actionEntity = Action.load(createDecPosId.toHexString());
   if (actionEntity == null) {
     actionEntity = new Action(createDecPosId.toHexString());
@@ -901,6 +939,7 @@ export function handleCreateDecreasePosition(
     actionEntity.account = event.params.account.toHexString();
     actionEntity.txhash = event.transaction.hash.toHexString();
     actionEntity.blockNumber = event.block.number.toI32();
+    actionEntity.save();
   }
 }
 //////////////////////////////////////////////////////////////////////////
@@ -1000,11 +1039,11 @@ function _storeFees(type: string, timestamp: BigInt, fees: BigInt): void {
   let periodTimestamp = parseInt(_getDayId(timestamp)) as i32;
   let id = periodTimestamp.toString() + ":daily";
   let entity = _getOrCreateFeeStat(id, "daily", periodTimestamp);
-  entity.setBigInt(type, entity.getBigInt(type) + fees);
+  entity.setBigInt(type, entity.getBigInt(type).plus(fees));
   entity.save();
 
   let totalEntity = _getOrCreateFeeStat("total", "total", periodTimestamp);
-  totalEntity.setBigInt(type, totalEntity.getBigInt(type) + fees);
+  totalEntity.setBigInt(type, totalEntity.getBigInt(type).plus(fees));
   totalEntity.save();
 }
 
@@ -1030,11 +1069,11 @@ function _storeVolume(type: string, timestamp: BigInt, volume: BigInt): void {
   let periodTimestamp = parseInt(_getDayId(timestamp)) as i32;
   let id = periodTimestamp.toString() + ":daily";
   let entity = _getOrCreateVolumeStat(id, "daily", periodTimestamp);
-  entity.setBigInt(type, entity.getBigInt(type) + volume);
+  entity.setBigInt(type, entity.getBigInt(type).plus(volume));
   entity.save();
 
   let totalEntity = _getOrCreateVolumeStat("total", "total", periodTimestamp);
-  totalEntity.setBigInt(type, totalEntity.getBigInt(type) + volume);
+  totalEntity.setBigInt(type, totalEntity.getBigInt(type).plus(volume));
   totalEntity.save();
 }
 
@@ -1063,7 +1102,8 @@ function _storeVolumeBySource(
   source: Address | null,
   volume: BigInt
 ): void {
-  let id = _getHourId(timestamp) + ":" + source.toHexString();
+  let _source = source == null ? "" : source.toHexString();
+  let id = _getHourId(timestamp) + ":" + _source;
   let entity = HourlyVolumeBySource.load(id);
 
   if (entity == null) {
@@ -1080,7 +1120,7 @@ function _storeVolumeBySource(
     }
   }
 
-  entity.setBigInt(type, entity.getBigInt(type) + volume);
+  entity.setBigInt(type, entity.getBigInt(type).plus(volume));
   entity.save();
 }
 
@@ -1110,7 +1150,7 @@ function _storeVolumeByToken(
     }
   }
 
-  entity.setBigInt(type, entity.getBigInt(type) + volume);
+  entity.setBigInt(type, entity.getBigInt(type).plus(volume));
   entity.save();
 }
 

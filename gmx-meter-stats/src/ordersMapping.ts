@@ -139,6 +139,7 @@ export function handleCreateIncreaseOrder(event: CreateIncreaseOrder): void {
     actionEntity.account = event.params.account.toHexString();
     actionEntity.txhash = event.transaction.hash.toHexString();
     actionEntity.blockNumber = event.block.number.toI32();
+    actionEntity.save();
   }
 }
 
@@ -166,6 +167,7 @@ export function handleCancelIncreaseOrder(event: CancelIncreaseOrder): void {
     actionEntity.account = event.params.account.toHexString();
     actionEntity.txhash = event.transaction.hash.toHexString();
     actionEntity.blockNumber = event.block.number.toI32();
+    actionEntity.save();
   }
 }
 
@@ -193,6 +195,7 @@ export function handleExecuteIncreaseOrder(event: ExecuteIncreaseOrder): void {
     actionEntity.account = event.params.account.toHexString();
     actionEntity.txhash = event.transaction.hash.toHexString();
     actionEntity.blockNumber = event.block.number.toI32();
+    actionEntity.save();
   }
 }
 
@@ -227,6 +230,7 @@ export function handleCreateDecreaseOrder(event: CreateDecreaseOrder): void {
     actionEntity.account = event.params.account.toHexString();
     actionEntity.txhash = event.transaction.hash.toHexString();
     actionEntity.blockNumber = event.block.number.toI32();
+    actionEntity.save();
   }
 }
 
@@ -254,6 +258,7 @@ export function handleCancelDecreaseOrder(event: CancelDecreaseOrder): void {
     actionEntity.account = event.params.account.toHexString();
     actionEntity.txhash = event.transaction.hash.toHexString();
     actionEntity.blockNumber = event.block.number.toI32();
+    actionEntity.save();
   }
 }
 
@@ -281,6 +286,7 @@ export function handleExecuteDecreaseOrder(event: ExecuteDecreaseOrder): void {
     actionEntity.account = event.params.account.toHexString();
     actionEntity.txhash = event.transaction.hash.toHexString();
     actionEntity.blockNumber = event.block.number.toI32();
+    actionEntity.save();
   }
 }
 
